@@ -1,11 +1,60 @@
-.help
-- returns a list of the different types of commands
-    - .recipe help
-    - .light help
-    - .task help
+/help
+- returns a list of the different help commands
+    - /recipe
+    - /light
+    - /task
 
-.recipe help
+/recipe help
+- returns a list of the recipe commands and descriptions of each
+    - /recipe
+        - also gives the recipe help page
+    - /recipe read [name]
+        - responds with an embedded message containing a recipe with the given name
+        - returns a list of recipe names with the given name to be read again with the desired name
+    - /recipe list
+        - returns a list of all the recipes to be browsed
+    - /recipe add [name|serving,ingredient,ingredient|step1,step2]
+        - adds a recipe with the following stuff to the df and saves it to the file
+    - /recipe remove [name]
+        - finds a recipe with the given name and confirms if it should be removed
+    - /recipe edit [original name|new name|new ingredients|new steps]
+        - finds a recipe with the original name, gets confirmation then replaces all saved information
+    - /recipe ingredient [ingredient]
+        - returns a list of recipes that contain the ingredient
+    - /recipe random
+        - picks a random recipe from the list of recipes
 
-.light help
+/light help
+- returns a list of the light commands and descriptions of each
+- all commands can have a time added after and the command will be delayed for that amount of time
+    - /light
+        - also returns a light help page
+    - /light status [light]
+        - returns the status of all lights or the light specified
+    - /light power [light] [time]
+        - toggles the power of all lights or the selected light
+    - /light on [light] [time]
+        - turns on all lights or the specified light
+    - /light off [light] [time]
+        - turns off all lights or the specified light
+    - /light brightness [percentage] [light] [time]
+        - changes all the lights brightness to the percentage or on the specified light
+    - /light theme [theme] [light] [time]
+        - changes the theme of all the lights or the specified light to the certain theme
 
-.task help
+/task help
+- returns a list of the light commands and descriptions of each
+    - /task
+        - also returns the task help page
+    - /task status
+        - returns the list of tasks and their timers
+    - /task add [regular]
+        - adds a new task that has a regular schedule (day of the week/month)
+    - /task add [timed]
+        - adds a new task that has a timer that counts up from the last time it was completed
+    - /task remove [task]
+        - removes the selected task from the list
+    - /task setPing [task] [time]
+        - toggles whether the task pings after a certain time or when the regular time occurs
+    - /task completed [task]
+        - updates the time the task was last completed
