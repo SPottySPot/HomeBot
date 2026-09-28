@@ -1,0 +1,11 @@
+.help
+- returns a list of the different types of commands
+    - .recipe help
+    - .light help
+    - .task help
+
+.recipe help
+
+.light help
+
+.task help
