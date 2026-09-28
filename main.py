@@ -8,6 +8,7 @@ from pandas.errors import EmptyDataError
 import random
 import socket
 from nanoleafapi import Nanoleaf, discovery
+import requests
 
 load_dotenv()
 discordToken = os.getenv("DISCORD_TOKEN")
@@ -78,15 +79,15 @@ def discoverNanoleaf():
 async def on_ready():
     print('Online!')
     ReadRecipesDF()
-    #discoverNanoleaf()
+    discoverNanoleaf()
 
-    #global nanoleafURL
-    #nanoleafURL = f"http://{nanoleafIP}:16021/api/v1"
-    #response = requests.get(
-    #    f"{nanoleafURL}/{nanoleafToken}/state"
-    #)
-    #print(response.status_code)
-    #print(response.text)
+    global nanoleafURL
+    nanoleafURL = f"http://{nanoleafIP}:16021/api/v1"
+    response = requests.get(
+        f"{nanoleafURL}/{nanoleafToken}/state"
+    )
+    print(response.status_code)
+    print(response.text)
 
 
 
