@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import logging
 from dotenv import load_dotenv
@@ -12,21 +13,27 @@ import requests
 
 load_dotenv()
 discordToken = os.getenv("DISCORD_TOKEN")
+guildID = 1385949023642587328 #id for test server
+guild = discord.Object(id=guildID)
 nanoleafToken = os.getenv("NANOLEAF_TOKEN")
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix='.', intents=intents)
+bot = commands.Bot(
+    command_prefix='.',
+    intents=intents
+)
 
 recipes = ["dish", "ingredients", "steps"]
 recipesDF = pd.DataFrame(columns=recipes)
 
-def discoverNanoleaf():
-    global nanoleafIP
+nanoleafIP = None
 
-    nanoleafIP = None
+def DiscoverNanoleaf():
+    global nanoleafIP
 
     message = (
         "M-SEARCH * HTTP/1.1\r\n"
@@ -79,17 +86,20 @@ def discoverNanoleaf():
 async def on_ready():
     print('Online!')
     ReadRecipesDF()
-    discoverNanoleaf()
+    #DiscoverNanoleaf()
 
-    global nanoleafURL
-    nanoleafURL = f"http://{nanoleafIP}:16021/api/v1"
-    response = requests.get(
-        f"{nanoleafURL}/{nanoleafToken}/state"
-    )
-    print(response.status_code)
-    print(response.text)
+    #global nanoleafURL
+    #nanoleafURL = f"http://{nanoleafIP}:16021/api/v1"
+    #response = requests.get(
+        #f"{nanoleafURL}/{nanoleafToken}/state"
+    #)
+    #print(response.status_code)
+    #print(response.text)
 
-
+    syncedCommands = await bot.tree.sync(guild=guild) #remove guild to make it global
+    print("Synced commands:")
+    for command in syncedCommands:
+        print(f"- /{command.name}")
 
 def ReadRecipesDF():
     global recipesDF
@@ -527,5 +537,35 @@ async def deleteRecipe(ctx, *, recipeName=None):
                 description="The confirmation timed out.",
                 color=discord.Color.blue()
             ))
+
+@app_commands.command(name="help", description="lists the different help commands")
+async def helpCommand(interaction: discord.Interaction):
+    helpEmbed = discord.Embed(
+        title="Bot Help",
+        description="Select a help page to view the available commands.",
+    )
+    helpEmbed.add_field(
+        name="/recipe help",
+        value="View commands for managing and searching recipes.",
+        inline=False
+    )
+    helpEmbed.add_field(
+        name="/light help",
+        value="View commands for controlling the smart lights.",
+        inline=False
+    )
+    helpEmbed.add_field(
+        name="/task help",
+        value="View commands for managing tasks, schedules and timers.",
+        inline=False
+    )
+    await interaction.response.send_message(embed=helpEmbed)
+
+bot.tree.add_command(helpCommand, guild=guild) #remove guild to make it global
+#add later
+#bot.tree.add_command(recipeGroup())
+#bot.tree.add_command(lightGroup())
+#bot.tree.add_command(taskGroup())
+
 
 bot.run(discordToken, log_handler=handler, log_level=logging.DEBUG)
