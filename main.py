@@ -22,7 +22,7 @@ handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w'
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(
+bot = commands.Bot( # remainder of .commands that are being phased out
     command_prefix='.',
     intents=intents
 )
@@ -32,6 +32,7 @@ recipesDF = pd.DataFrame(columns=recipes)
 
 nanoleafIP = None
 
+#current implementation for getting nanoleaf ip
 def DiscoverNanoleaf():
     global nanoleafIP
 
@@ -86,6 +87,11 @@ def DiscoverNanoleaf():
 async def on_ready():
     print('Online!')
     ReadRecipesDF()
+
+    #clears the global commands sync
+    bot.tree.clear_commands(guild=None)
+    await bot.tree.sync()
+
     #DiscoverNanoleaf()
 
     #global nanoleafURL
@@ -96,11 +102,14 @@ async def on_ready():
     #print(response.status_code)
     #print(response.text)
 
+
+    #syncs commands list with specifically my guild
     syncedCommands = await bot.tree.sync(guild=guild) #remove guild to make it global
     print("Synced commands:")
     for command in syncedCommands:
         print(f"- /{command.name}")
 
+#reads the recipes.csv and writes it to the recipesDF. used for updating during use
 def ReadRecipesDF():
     global recipesDF
 
@@ -157,6 +166,7 @@ def CreateErrorEmbed(message):
     )
     return embed
 
+#stops the bot from reading its own messages
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -538,11 +548,12 @@ async def deleteRecipe(ctx, *, recipeName=None):
                 color=discord.Color.blue()
             ))
 
+#responds with a list of the different help commands
 @app_commands.command(name="help", description="lists the different help commands")
 async def helpCommand(interaction: discord.Interaction):
     helpEmbed = discord.Embed(
-        title="Bot Help",
-        description="Select a help page to view the available commands.",
+        title="Help Commands",
+        color=discord.Color.blue()
     )
     helpEmbed.add_field(
         name="/recipe help",
@@ -560,6 +571,8 @@ async def helpCommand(interaction: discord.Interaction):
         inline=False
     )
     await interaction.response.send_message(embed=helpEmbed)
+
+
 
 bot.tree.add_command(helpCommand, guild=guild) #remove guild to make it global
 #add later
