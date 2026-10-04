@@ -1,3 +1,5 @@
+from unittest import case
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -33,7 +35,7 @@ recipesDF = pd.DataFrame(columns=recipes)
 nanoleafIP = None
 
 #current implementation for getting nanoleaf ip
-def DiscoverNanoleaf():
+def discoverNanoleaf():
     global nanoleafIP
 
     message = (
@@ -86,11 +88,7 @@ def DiscoverNanoleaf():
 @bot.event
 async def on_ready():
     print('Online!')
-    ReadRecipesDF()
-
-    #clears the global commands sync
-    bot.tree.clear_commands(guild=None)
-    await bot.tree.sync()
+    readRecipesDF()
 
     #DiscoverNanoleaf()
 
@@ -102,15 +100,19 @@ async def on_ready():
     #print(response.status_code)
     #print(response.text)
 
+    #clears the global commands sync
+    #bot.tree.clear_commands(guild=none)
+    #await bot.tree.sync()
 
     #syncs commands list with specifically my guild
-    syncedCommands = await bot.tree.sync(guild=guild) #remove guild to make it global
+    syncedCommands = await bot.tree.sync(guild=guild)
     print("Synced commands:")
     for command in syncedCommands:
         print(f"- /{command.name}")
+    print("Initialised")
 
 #reads the recipes.csv and writes it to the recipesDF. used for updating during use
-def ReadRecipesDF():
+def readRecipesDF():
     global recipesDF
 
     try:
@@ -237,7 +239,7 @@ async def recipe(ctx):
 
 @bot.command()
 async def addRecipe(ctx, *, recipe=None):
-    ReadRecipesDF()
+    readRecipesDF()
     global recipesDF
 
     if not recipe:
@@ -279,7 +281,7 @@ async def addRecipe(ctx, *, recipe=None):
 
 @bot.command()
 async def readRecipe(ctx, *, recipeName=None):
-    ReadRecipesDF()
+    readRecipesDF()
 
     if not recipeName:
         await ctx.send(embed=CreateErrorEmbed("Please provide a recipe name."))
@@ -301,15 +303,15 @@ async def readRecipe(ctx, *, recipeName=None):
 
 @bot.command()
 async def listRecipes(ctx):
-    ReadRecipesDF()
+    readRecipesDF()
 
     if recipesDF.empty:
         await ctx.send(embed=CreateErrorEmbed("There are no recipes available."))
         return
 
     dishes = []
-    for index, recipe in recipesDF.iterrows():
-        dishes.append(f"- {recipe['dish']}")
+    for i, dish in recipesDF.iterrows():
+        dishes.append(f"- {dish['dish']}")
     message = "\n".join(dishes)
     embed = discord.Embed(
         title="Available Recipes",
@@ -320,7 +322,7 @@ async def listRecipes(ctx):
 
 @bot.command()
 async def randomRecipe(ctx):
-    ReadRecipesDF()
+    readRecipesDF()
 
     if recipesDF.empty:
         await ctx.send(embed=CreateErrorEmbed("There are no recipes available."))
@@ -343,7 +345,7 @@ async def randomRecipe(ctx):
 
 @bot.command()
 async def findIngredient(ctx, *, ingredient=None):
-    ReadRecipesDF()
+    readRecipesDF()
 
     if not ingredient:
         await ctx.send(embed=CreateErrorEmbed("Please provide an ingredient."))
@@ -377,7 +379,7 @@ async def findIngredient(ctx, *, ingredient=None):
 
 @bot.command()
 async def editRecipe(ctx, *, recipe=None):
-    ReadRecipesDF()
+    readRecipesDF()
     global recipesDF
 
     if not recipe:
@@ -475,7 +477,7 @@ async def editRecipe(ctx, *, recipe=None):
 
 @bot.command()
 async def deleteRecipe(ctx, *, recipeName=None):
-    ReadRecipesDF()
+    readRecipesDF()
     global recipesDF
 
     if not recipeName:
@@ -572,13 +574,170 @@ async def helpCommand(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=helpEmbed)
 
+#creates the group to add recipe commands to
+recipeGroup = app_commands.Group(name="recipe", description="Recipe management")
 
+@recipeGroup.command(name="help", description="lists the different help commands for the recipe Manager")
+async def recipeHelpCommand(interaction: discord.Interaction):
 
-bot.tree.add_command(helpCommand, guild=guild) #remove guild to make it global
+    recipeHelpEmbed = discord.Embed(
+        title="Recipe Bot Commands",
+        color=discord.Color.blue()
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe help",
+        value="Show the list of available recipe commands.",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe list",
+        value="shows a list of all recipes",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe read",
+        value="gets a recipe by name and returns the recipe",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe add",
+        value="adds a new recipe to the database.",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe ingredient",
+        value="Find recipes containing an ingredient.",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe edit",
+        value="finds the recipe with the name given and changes all the details to the new ones",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe delete",
+        value="deletes a recipe from the database.",
+        inline=False
+    )
+    recipeHelpEmbed.add_field(
+        name="/recipe random",
+        value="selects a random recipe from the database",
+        inline=False
+    )
+    await interaction.response.send_message(embed=recipeHelpEmbed)
+
+@recipeGroup.command(name="list", description="shows a list of all recipes")
+async def recipeListCommand(interaction: discord.Interaction):
+    readRecipesDF()
+    if recipesDF.empty:
+        await interaction.response.send_message("There are no recipes in the database.")
+        return
+
+    dishes = []
+    for i, dish in recipesDF.iterrows():
+        dishes.append(f"- {dish['dish']}")
+
+    message = "\n".join(dishes)
+    recipeListEmbed = discord.Embed(
+        title="Available Recipes",
+        description=message,
+        color=discord.Color.blue()
+    )
+    await interaction.response.send_message(embed=recipeListEmbed)
+
+@recipeGroup.command(name="read", description="gets a recipe by name and returns the recipe")
+@app_commands.describe(dish="The name of the recipe",)
+async def recipeReadCommand(interaction: discord.Interaction, dish: str):
+    readRecipesDF()
+
+    found = recipesDF[recipesDF['dish'].str.contains(dish, case=False)]
+
+    if found.empty:
+        await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that name."))
+        return
+
+    if len(found) > 1:
+        dishes = []
+        for i, dish in found.iterrows():
+            dishes.append(f"- {dish['dish']}")
+
+        message = "\n".join(dishes)
+        recipeFoundEmbed = discord.Embed(
+            title="Recipes Found",
+            description=message,
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=recipeFoundEmbed)
+        return
+
+    embed = CreateRecipeEmbed(found.iloc[0])
+    await interaction.response.send_message(embed=embed)
+
+@recipeGroup.command(name="add", description="adds a new recipe to the database.")#TODO
+async def recipeAddCommand(interaction: discord.Interaction):
+    await interaction.response.send_message("This command is not implemented yet.")
+
+@recipeGroup.command(name="edit", description="finds the recipe with the name given and changes all the details to the new ones")#TODO
+async def recipeEditCommand(interaction: discord.Interaction):
+    await interaction.response.send_message("This command is not implemented yet.")
+
+@recipeGroup.command(name="delete", description="deletes a recipe from the database.")#TODO
+async def recipeDeleteCommand(interaction: discord.Interaction):
+    await interaction.response.send_message("This command is not implemented yet.")
+
+@recipeGroup.command(name="ingredient", description="Find recipes containing an ingredient.")
+async def recipeIngredientCommand(interaction: discord.Interaction, ingredient: str):
+    readRecipesDF()
+
+    found = recipesDF[recipesDF['ingredient'].str.contains(ingredient, case=False)]
+
+    if found.empty:
+        await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that name."))
+        return
+
+    if len(found) > 1:
+        dishes = []
+        for i, dish in found.iterrows():
+            dishes.append(f"- {dish['dish']}")
+
+        message = "\n".join(dishes)
+        recipeFoundEmbed = discord.Embed(
+            title="Recipes Found",
+            description=message,
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=recipeFoundEmbed)
+        return
+
+    embed = CreateRecipeEmbed(found.iloc[0])
+    await interaction.response.send_message(embed=embed)
+
+@recipeGroup.command(name="random", description="selects a random recipe from the database")
+async def recipeRandomCommand(interaction: discord.Interaction):
+    readRecipesDF()
+
+    if recipesDF.empty:
+        await interaction.response.send_message(embed=CreateErrorEmbed("There are no recipes in the database."))
+        return
+
+    ran = random.randint(1, 100)
+    if ran == 100:
+        await interaction.response.send_message(embed = discord.Embed(
+            title="Random Recipe",
+            description="You Win. Go out for food instead!",
+            color=discord.Color.blue()
+        ))
+        return
+
+    ran = random.randint(0, len(recipesDF)-1)
+    dish = recipesDF.iloc[ran]
+    await  interaction.response.send_message(embed=CreateRecipeEmbed(dish))
+
+bot.tree.add_command(helpCommand, guild=guild)
+bot.tree.add_command(recipeGroup, guild=guild)
 #add later
-#bot.tree.add_command(recipeGroup())
-#bot.tree.add_command(lightGroup())
-#bot.tree.add_command(taskGroup())
+#bot.tree.add_command(lightGroup, guild=guild)
+#bot.tree.add_command(taskGroup, guild=guild)
 
 
 bot.run(discordToken, log_handler=handler, log_level=logging.DEBUG)
