@@ -27,7 +27,7 @@ bot = commands.Bot( # remainder of .commands that are being phased out
     intents=intents
 )
 
-recipes = ["dish", "ingredients", "steps"]
+recipes = ["dish", "servings", "ingredients", "steps"]
 recipesDF = pd.DataFrame(columns=recipes)
 
 nanoleafIP = None
@@ -121,12 +121,15 @@ def readRecipesDF():
     except EmptyDataError:
         recipesDF = pd.DataFrame(columns=recipes)
 
-def CreateRecipeEmbed(recipe, title=None):
+def CreateRecipeEmbed(dish, title=None):
     if title is None:
-        title = recipe['dish']
+        title = dish['dish']
 
-    ingredients = str(recipe['ingredients']).split(',')
-    steps = str(recipe['steps']).split(',')
+    servings = str(dish['servings'])
+    ingredients = str(dish['ingredients']).split(',')
+    steps = str(dish['steps']).split(',')
+
+
 
     ingredientText = ""
     for ingredient in ingredients:
@@ -143,6 +146,12 @@ def CreateRecipeEmbed(recipe, title=None):
     embed = discord.Embed(
         title=title,
         color=discord.Color.blue()
+    )
+
+    embed.add_field(
+        name="Servings",
+        value=servings,
+        inline=False
     )
 
     embed.add_field(
@@ -687,6 +696,8 @@ class RecipeModal(discord.ui.Modal):
 
     def __init__(self, title, dish=None, index=None,):
         super().__init__(title=title)
+        self.isEdit = False
+        self.index = index
 
         if dish is not None:
             self.dish.default = str(dish["dish"])
@@ -694,11 +705,8 @@ class RecipeModal(discord.ui.Modal):
             self.ingredients.default = str(dish["ingredients"])
             self.steps.default = str(dish["steps"])
             self.isEdit = True
-            self.index = index
 
     async def on_submit(self, interaction):
-        readRecipesDF()
-
         if self.isEdit:
             recipesDF.loc[self.index, 'dish'] = self.dish.value
             recipesDF.loc[self.index, 'servings'] = self.servings.value
@@ -723,31 +731,26 @@ class RecipeModal(discord.ui.Modal):
         embed = CreateRecipeEmbed(dish, f"{self.dish.value} - Recipe Added")
         await interaction.response.send_message(embed=embed)
 
-
-@recipeGroup.command(name="add", description="adds a new recipe to the database.")#TODO
+@recipeGroup.command(name="add", description="adds a new recipe to the database.")
 async def recipeAddCommand(interaction: discord.Interaction):
+    readRecipesDF()
     await interaction.response.send_modal(RecipeModal("Add New Recipe"))
 
-@recipeGroup.command(name="edit", description="finds the recipe with the name given and changes all the details to the new ones")#TODO
+@recipeGroup.command(name="edit", description="finds the recipe with the name given and changes all the details to the new ones")
 async def recipeEditCommand(interaction: discord.Interaction, dish: str):
     global recipesDF
     readRecipesDF()
 
-    found = recipesDF[
-        recipesDF["dish"].str.lower() == dish.lower()
-        ]
+    found = recipesDF[recipesDF["dish"].str.lower() == dish.lower()]
 
     if found.empty:
-        await interaction.response.send_message(
-            embed=CreateErrorEmbed("There are no dishes with that name.")
-        )
+        await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that name."))
         return
 
     if len(found) > 1:
-        await interaction.response.send_message(
-            embed=CreateErrorEmbed("There is more than one dish with that name.")
-        )
+        await interaction.response.send_message(embed=CreateErrorEmbed("There is more than one dish with that name."))
         return
+
     index = found.index[0]
     await interaction.response.send_modal(RecipeModal("Edit Old Recipe", found.iloc[0], index=index))
 
@@ -846,7 +849,7 @@ async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
 async def recipeIngredientCommand(interaction: discord.Interaction, ingredient: str):
     readRecipesDF()
 
-    found = recipesDF[recipesDF['ingredient'].str.contains(ingredient, case=False)]
+    found = recipesDF[recipesDF['ingredients'].str.contains(ingredient, case=False)]
 
     if found.empty:
         await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that ingredient."))
