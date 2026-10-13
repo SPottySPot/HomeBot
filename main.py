@@ -1,5 +1,3 @@
-from unittest import case
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -402,9 +400,7 @@ async def editRecipe(ctx, *, recipe=None):
     ingredients = x[2].strip()
     steps = x[3].strip()
 
-    recipeRow = recipesDF[
-        recipesDF['dish'].str.lower() == oldDish.lower()
-    ]
+    recipeRow = recipesDF[recipesDF['dish'].str.lower() == oldDish.lower()]
 
     if recipeRow.empty:
         await ctx.send(embed=CreateErrorEmbed("There are no dishes with that name."))
@@ -673,17 +669,178 @@ async def recipeReadCommand(interaction: discord.Interaction, dish: str):
     embed = CreateRecipeEmbed(found.iloc[0])
     await interaction.response.send_message(embed=embed)
 
+class RecipeModal(discord.ui.Modal):
+
+    dish = discord.ui.TextInput(label="Dish", required=True)
+    servings = discord.ui.TextInput(label="Servings", required=True)
+    ingredients = discord.ui.TextInput(
+        label="Ingredients",
+        style=discord.TextStyle.paragraph,
+        required=True
+    )
+    steps = discord.ui.TextInput(
+        label="Steps",
+        style=discord.TextStyle.paragraph,
+        required=True
+    )
+    isEdit = False
+
+    def __init__(self, title, dish=None, index=None,):
+        super().__init__(title=title)
+
+        if dish is not None:
+            self.dish.default = str(dish["dish"])
+            self.servings.default = str(dish["servings"])
+            self.ingredients.default = str(dish["ingredients"])
+            self.steps.default = str(dish["steps"])
+            self.isEdit = True
+            self.index = index
+
+    async def on_submit(self, interaction):
+        readRecipesDF()
+
+        if self.isEdit:
+            recipesDF.loc[self.index, 'dish'] = self.dish.value
+            recipesDF.loc[self.index, 'servings'] = self.servings.value
+            recipesDF.loc[self.index, 'ingredients'] = self.ingredients.value
+            recipesDF.loc[self.index, 'steps'] = self.steps.value
+            recipesDF.to_csv('./recipes.csv', index=False)
+
+            dish = recipesDF.loc[self.index]
+            embed = CreateRecipeEmbed(dish, f"{self.dish.value} - Recipe Updated")
+            await interaction.response.send_message(embed=embed)
+            return
+
+        data = {
+            "dish": self.dish.value,
+            "servings": self.servings.value,
+            "ingredients": self.ingredients.value,
+            "steps": self.steps.value
+        }
+        recipesDF.loc[len(recipesDF)] = data
+        recipesDF.to_csv('./recipes.csv', index=False)
+        dish = recipesDF.iloc[-1]
+        embed = CreateRecipeEmbed(dish, f"{self.dish.value} - Recipe Added")
+        await interaction.response.send_message(embed=embed)
+
+
 @recipeGroup.command(name="add", description="adds a new recipe to the database.")#TODO
 async def recipeAddCommand(interaction: discord.Interaction):
-    await interaction.response.send_message("This command is not implemented yet.")
+    await interaction.response.send_modal(RecipeModal("Add New Recipe"))
 
 @recipeGroup.command(name="edit", description="finds the recipe with the name given and changes all the details to the new ones")#TODO
-async def recipeEditCommand(interaction: discord.Interaction):
-    await interaction.response.send_message("This command is not implemented yet.")
+async def recipeEditCommand(interaction: discord.Interaction, dish: str):
+    global recipesDF
+    readRecipesDF()
 
-@recipeGroup.command(name="delete", description="deletes a recipe from the database.")#TODO
-async def recipeDeleteCommand(interaction: discord.Interaction):
-    await interaction.response.send_message("This command is not implemented yet.")
+    found = recipesDF[
+        recipesDF["dish"].str.lower() == dish.lower()
+        ]
+
+    if found.empty:
+        await interaction.response.send_message(
+            embed=CreateErrorEmbed("There are no dishes with that name.")
+        )
+        return
+
+    if len(found) > 1:
+        await interaction.response.send_message(
+            embed=CreateErrorEmbed("There is more than one dish with that name.")
+        )
+        return
+    index = found.index[0]
+    await interaction.response.send_modal(RecipeModal("Edit Old Recipe", found.iloc[0], index=index))
+
+@recipeGroup.command(name="delete", description="deletes a recipe from the database.")
+async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
+    readRecipesDF()
+    global recipesDF
+
+    found = recipesDF[recipesDF["dish"].str.contains(dish, case=False)]
+
+    if found.empty:
+        await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that name."))
+        return
+
+    if len(found) > 1:
+        dishes = []
+
+        for i, dish in found.iterrows():
+            dishes.append(f"- {dish['dish']}")
+
+        message = "\n".join(dishes)
+        recipeFoundEmbed = discord.Embed(
+            title="Recipes Found",
+            description=message,
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=recipeFoundEmbed)
+        return
+
+    dish = found.iloc[0]
+
+    # Display the recipe normally
+    recipeEmbed = CreateRecipeEmbed(dish)
+    await interaction.response.send_message(embed=recipeEmbed)
+
+    # Confirmation embed
+    confirmEmbed = discord.Embed(
+        title="Confirm Deletion",
+        description=f"Would you like to delete **{dish['dish']}**?",
+        color=discord.Color.red()
+    )
+
+    confirmMessage = await interaction.followup.send(
+        embed=confirmEmbed,
+        wait=True
+    )
+
+    await confirmMessage.add_reaction("✅")
+    await confirmMessage.add_reaction("❌")
+
+    def check(reaction, user):
+        return (
+                user == interaction.user
+                and reaction.message.id == confirmMessage.id
+                and str(reaction.emoji) in ["✅", "❌"]
+        )
+
+    try:
+        reaction, user = await bot.wait_for(
+            "reaction_add",
+            timeout=30.0,
+            check=check
+        )
+
+        if str(reaction.emoji) == "❌":
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="Deletion Cancelled",
+                    description="The recipe was not deleted.",
+                    color=discord.Color.blue()
+                )
+            )
+            return
+
+        recipesDF = recipesDF.drop(found.index)
+        recipesDF.to_csv("./recipes.csv", index=False)
+
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="Recipe Deleted",
+                description=f"Recipe '{dish['dish']}' has been deleted.",
+                color=discord.Color.blue()
+            )
+        )
+
+    except TimeoutError:
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="Deletion Cancelled",
+                description="The confirmation timed out.",
+                color=discord.Color.blue()
+            )
+        )
 
 @recipeGroup.command(name="ingredient", description="Find recipes containing an ingredient.")
 async def recipeIngredientCommand(interaction: discord.Interaction, ingredient: str):
@@ -692,7 +849,7 @@ async def recipeIngredientCommand(interaction: discord.Interaction, ingredient: 
     found = recipesDF[recipesDF['ingredient'].str.contains(ingredient, case=False)]
 
     if found.empty:
-        await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that name."))
+        await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that ingredient."))
         return
 
     if len(found) > 1:

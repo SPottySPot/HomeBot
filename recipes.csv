@@ -1,3 +1,6 @@
 dish,ingredients,steps
 Pasta,"['1 Serve', '2 eggs']","['cook pasta', 'add eggs']"
 Pizza,"dough,toppings,idk a herb","pizza dough base,  put on some toppings,  probably cook it"
+egg,"egg,soy","cook, eat"
+test,test,test
+food,"stuff, with more stuff, and some more stuff","1. cook it, 2. let it cool, 3. eat it up"
