@@ -12,16 +12,14 @@ from nanoleafapi import Nanoleaf, discovery
 import requests
 
 load_dotenv()
-discordToken = os.getenv("DISCORD_TOKEN")
-guildID = 1385949023642587328 #id for test server
+discordToken = os.getenv("DISCORD_TOKEN", "")
+guildID = os.getenv("guild_id", "") #id for test server
 guild = discord.Object(id=guildID)
 nanoleafToken = os.getenv("NANOLEAF_TOKEN")
 
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 
 intents = discord.Intents.default()
-intents.message_content = True
-
 bot = commands.Bot(command_prefix='.', intents=intents)
 
 recipes = ["dish", "servings", "ingredients", "steps"]
@@ -123,53 +121,29 @@ def CreateRecipeEmbed(dish, title=None):
         title = dish['dish']
 
     servings = str(dish['servings'])
-    ingredients = str(dish['ingredients']).split(',')
-    steps = str(dish['steps']).split(',')
+    ingredients = str(dish['ingredients']).split('-')
+    steps = str(dish['steps']).split('-')
 
 
 
     ingredientText = ""
     for ingredient in ingredients:
         ingredient = ingredient.strip()
-        ingredient = ingredient.strip("[]'\"")
         ingredientText += f"- {ingredient}\n"
 
     stepText = ""
     for step in steps:
         step = step.strip()
-        step = step.strip("[]'\"")
         stepText += f"- {step}\n"
 
-    embed = discord.Embed(
-        title=title,
-        color=discord.Color.blue()
-    )
-
-    embed.add_field(
-        name="Servings",
-        value=servings,
-        inline=False
-    )
-
-    embed.add_field(
-        name="Ingredients",
-        value=ingredientText if ingredientText else "-",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Steps",
-        value=stepText if stepText else "-",
-        inline=False
-    )
+    embed = discord.Embed(title=title,color=discord.Color.blue())
+    embed.add_field(name="Servings",value=servings,inline=False)
+    embed.add_field(name="Ingredients",value=ingredientText if ingredientText else "-",inline=False)
+    embed.add_field(name="Steps",value=stepText if stepText else "-",inline=False)
     return embed
 
 def CreateErrorEmbed(message):
-    embed = discord.Embed(
-        title="Error",
-        description=message,
-        color=discord.Color.red()
-    )
+    embed = discord.Embed(title="Error",description=message,color=discord.Color.red())
     return embed
 
 #stops the bot from reading its own messages
@@ -208,7 +182,6 @@ recipeGroup = app_commands.Group(name="recipe", description="Recipe management")
 
 @recipeGroup.command(name="help", description="lists the different help commands for the recipe Manager")
 async def recipeHelpCommand(interaction: discord.Interaction):
-
     recipeHelpEmbed = discord.Embed(
         title="Recipe Bot Commands",
         color=discord.Color.blue()
@@ -287,6 +260,7 @@ async def recipeReadCommand(interaction: discord.Interaction, dish: str):
 
     if len(found) > 1:
         dishes = []
+
         for i, dish in found.iterrows():
             dishes.append(f"- {dish['dish']}")
 
@@ -425,20 +399,18 @@ async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
     await confirmMessage.add_reaction("✅")
     await confirmMessage.add_reaction("❌")
 
-    def check(reaction, user):
+    def check(addedReaction, activeUser):
         return (
-                user == interaction.user
-                and reaction.message.id == confirmMessage.id
-                and str(reaction.emoji) in ["✅", "❌"]
+                activeUser == interaction.user
+                and addedReaction.message.id == confirmMessage.id
+                and str(addedReaction.emoji) in ["✅", "❌"]
         )
-
     try:
         reaction, user = await bot.wait_for(
             "reaction_add",
             timeout=30.0,
             check=check
         )
-
         if str(reaction.emoji) == "❌":
             await interaction.followup.send(
                 embed=discord.Embed(
@@ -459,7 +431,6 @@ async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
                 color=discord.Color.blue()
             )
         )
-
     except TimeoutError:
         await interaction.followup.send(
             embed=discord.Embed(
