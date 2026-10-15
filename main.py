@@ -13,7 +13,7 @@ import requests
 
 load_dotenv()
 discordToken = os.getenv("DISCORD_TOKEN", "")
-guildID = os.getenv("guild_id", "") #id for test server
+guildID = int(os.getenv("guild_id", "0")) #id for test server
 guild = discord.Object(id=guildID)
 nanoleafToken = os.getenv("NANOLEAF_TOKEN")
 
@@ -121,10 +121,8 @@ def CreateRecipeEmbed(dish, title=None):
         title = dish['dish']
 
     servings = str(dish['servings'])
-    ingredients = str(dish['ingredients']).split('-')
-    steps = str(dish['steps']).split('-')
-
-
+    ingredients = str(dish['ingredients']).splitlines()
+    steps = str(dish['steps']).splitlines()
 
     ingredientText = ""
     for ingredient in ingredients:
@@ -145,13 +143,6 @@ def CreateRecipeEmbed(dish, title=None):
 def CreateErrorEmbed(message):
     embed = discord.Embed(title="Error",description=message,color=discord.Color.red())
     return embed
-
-#stops the bot from reading its own messages
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-    await bot.process_commands(message)
 
 #responds with a list of the different help commands
 @app_commands.command(name="help", description="lists the different help commands")
@@ -178,9 +169,9 @@ async def helpCommand(interaction: discord.Interaction):
     await interaction.response.send_message(embed=helpEmbed)
 
 #creates the group to add recipe commands to
-recipeGroup = app_commands.Group(name="recipe", description="Recipe management")
+recipeGroup = app_commands.Group(name="recipe", description="Manage, search, and browse saved recipes.")
 
-@recipeGroup.command(name="help", description="lists the different help commands for the recipe Manager")
+@recipeGroup.command(name="help",description="Display the available recipe commands and their descriptions.")
 async def recipeHelpCommand(interaction: discord.Interaction):
     recipeHelpEmbed = discord.Embed(
         title="Recipe Bot Commands",
@@ -188,47 +179,47 @@ async def recipeHelpCommand(interaction: discord.Interaction):
     )
     recipeHelpEmbed.add_field(
         name="/recipe help",
-        value="Show the list of available recipe commands.",
+        value="Display the available recipe commands and their descriptions.",
         inline=False
     )
     recipeHelpEmbed.add_field(
         name="/recipe list",
-        value="shows a list of all recipes",
+        value="Display a list of all saved recipes.",
         inline=False
     )
     recipeHelpEmbed.add_field(
-        name="/recipe read",
-        value="gets a recipe by name and returns the recipe",
+        name="/recipe read [dish]",
+        value="Search for a recipe by dish name and display its details. If multiple recipes match, display the matching names.",
         inline=False
     )
     recipeHelpEmbed.add_field(
         name="/recipe add",
-        value="adds a new recipe to the database.",
+        value="Open a form to add a recipe, including its name, servings, ingredients, and steps. Enter each ingredient and step on a separate line.",
         inline=False
     )
     recipeHelpEmbed.add_field(
-        name="/recipe ingredient",
-        value="Find recipes containing an ingredient.",
+        name="/recipe edit [dish]",
+        value="Find a recipe by dish name and open a pre-filled form to update its name, servings, ingredients, and steps.",
         inline=False
     )
     recipeHelpEmbed.add_field(
-        name="/recipe edit",
-        value="finds the recipe with the name given and changes all the details to the new ones",
+        name="/recipe delete [dish]",
+        value="Find and review a recipe, then confirm whether to delete it.",
         inline=False
     )
     recipeHelpEmbed.add_field(
-        name="/recipe delete",
-        value="deletes a recipe from the database.",
+        name="/recipe ingredient [ingredient]",
+        value="Find recipes containing the specified ingredient and display the matching recipes.",
         inline=False
     )
     recipeHelpEmbed.add_field(
         name="/recipe random",
-        value="selects a random recipe from the database",
+        value="Display a randomly selected saved recipe, with a small chance of suggesting you eat out instead.",
         inline=False
     )
     await interaction.response.send_message(embed=recipeHelpEmbed)
 
-@recipeGroup.command(name="list", description="shows a list of all recipes")
+@recipeGroup.command(name="list", description="Display a list of all saved recipes.")
 async def recipeListCommand(interaction: discord.Interaction):
     readRecipesDF()
     if recipesDF.empty:
@@ -247,8 +238,8 @@ async def recipeListCommand(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=recipeListEmbed)
 
-@recipeGroup.command(name="read", description="gets a recipe by name and returns the recipe")
-@app_commands.describe(dish="The name of the recipe",)
+@recipeGroup.command(name="read", description="Search for a recipe by dish name and display its details.")
+@app_commands.describe(dish="Enter the name of the dish")
 async def recipeReadCommand(interaction: discord.Interaction, dish: str):
     readRecipesDF()
 
@@ -290,7 +281,6 @@ class RecipeModal(discord.ui.Modal):
         style=discord.TextStyle.paragraph,
         required=True
     )
-    isEdit = False
 
     def __init__(self, title, dish=None, index=None,):
         super().__init__(title=title)
@@ -307,7 +297,7 @@ class RecipeModal(discord.ui.Modal):
     async def on_submit(self, interaction):
         if self.isEdit:
             recipesDF.loc[self.index, 'dish'] = self.dish.value
-            recipesDF.loc[self.index, 'servings'] = self.servings.value
+            recipesDF.loc[self.index, 'servings'] = int(self.servings.value)
             recipesDF.loc[self.index, 'ingredients'] = self.ingredients.value
             recipesDF.loc[self.index, 'steps'] = self.steps.value
             recipesDF.to_csv('./recipes.csv', index=False)
@@ -329,17 +319,18 @@ class RecipeModal(discord.ui.Modal):
         embed = CreateRecipeEmbed(dish, f"{self.dish.value} - Recipe Added")
         await interaction.response.send_message(embed=embed)
 
-@recipeGroup.command(name="add", description="adds a new recipe to the database.")
+@recipeGroup.command(name="add", description="Add a new recipe using a form.")
 async def recipeAddCommand(interaction: discord.Interaction):
     readRecipesDF()
     await interaction.response.send_modal(RecipeModal("Add New Recipe"))
 
-@recipeGroup.command(name="edit", description="finds the recipe with the name given and changes all the details to the new ones")
+@recipeGroup.command(name="edit", description="Edit an existing recipe by its dish name.")
+@app_commands.describe(dish="Enter the name of the dish")
 async def recipeEditCommand(interaction: discord.Interaction, dish: str):
     global recipesDF
     readRecipesDF()
 
-    found = recipesDF[recipesDF["dish"].str.lower() == dish.lower()]
+    found = recipesDF[recipesDF['dish'].str.contains(dish, case=False)]
 
     if found.empty:
         await interaction.response.send_message(embed=CreateErrorEmbed("There are no dishes with that name."))
@@ -352,10 +343,11 @@ async def recipeEditCommand(interaction: discord.Interaction, dish: str):
     index = found.index[0]
     await interaction.response.send_modal(RecipeModal("Edit Old Recipe", found.iloc[0], index=index))
 
-@recipeGroup.command(name="delete", description="deletes a recipe from the database.")
+@recipeGroup.command(name="delete", description="Review a recipe and confirm whether to delete it.")
+@app_commands.describe(dish="Enter the name of the dish")
 async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
-    readRecipesDF()
     global recipesDF
+    readRecipesDF()
 
     found = recipesDF[recipesDF["dish"].str.contains(dish, case=False)]
 
@@ -421,7 +413,7 @@ async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
             )
             return
 
-        recipesDF = recipesDF.drop(found.index)
+        recipesDF = recipesDF.drop(found.index).reset_index(drop=True)
         recipesDF.to_csv("./recipes.csv", index=False)
 
         await interaction.followup.send(
@@ -440,7 +432,8 @@ async def recipeDeleteCommand(interaction: discord.Interaction, dish: str):
             )
         )
 
-@recipeGroup.command(name="ingredient", description="Find recipes containing an ingredient.")
+@recipeGroup.command(name="ingredient", description="Find recipes containing a specific ingredient.")
+@app_commands.describe(ingredient="Enter the name of an ingredient")
 async def recipeIngredientCommand(interaction: discord.Interaction, ingredient: str):
     readRecipesDF()
 
@@ -467,7 +460,7 @@ async def recipeIngredientCommand(interaction: discord.Interaction, ingredient: 
     embed = CreateRecipeEmbed(found.iloc[0])
     await interaction.response.send_message(embed=embed)
 
-@recipeGroup.command(name="random", description="selects a random recipe from the database")
+@recipeGroup.command(name="random", description="Display a randomly selected saved recipe.")
 async def recipeRandomCommand(interaction: discord.Interaction):
     readRecipesDF()
 

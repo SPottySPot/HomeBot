@@ -5,22 +5,26 @@
     - /task
 
 /recipe help
-- returns a list of the recipe commands and descriptions of each
-    - /recipe read [name]
-        - responds with an embedded message containing a recipe with the given name
-        - returns a list of recipe names with the given name to be read again with the desired name
+returns a list of the recipe commands and descriptions of each
     - /recipe list
-        - returns a list of all the recipes to be browsed
-    - /recipe add [name|serving,ingredient,ingredient|step1,step2]
-        - adds a recipe with the following stuff to the df and saves it to the file
-    - /recipe remove [name]
-        - finds a recipe with the given name and confirms if it should be removed
-    - /recipe edit [original name|new name|new ingredients|new steps]
-        - finds a recipe with the original name, gets confirmation then replaces all saved information
+        - returns a list of all saved recipes.
+    - /recipe read [dish]
+        - Searches for a recipe by name and displays it in an embedded message.
+        - If multiple recipes match, returns a list of matching recipe names to choose from.
+    - /recipe add
+        - opens a modal to enter the dish name, servings, ingredients and steps.
+        - saves the new recipe to the DataFrame and CSV file.
+        - each ingredient and step should be put on separate lines.
+    - /recipe edit [dish]
+        - finds a recipe by its exact name and opens a form pre-filled with its current information.
+        - allows the dish name, servings, ingredients and steps to be changed, then saves the updated recipe to the DataFrame and CSV.
+    - /recipe delete [dish]
+        - searches for a recipe by name and displays it for review.
+        - asks for confirmation before deleting the recipe from the DataFrame and CSV.
     - /recipe ingredient [ingredient]
-        - returns a list of recipes that contain the ingredient
+        - returns a list of recipes containing the specified ingredient.
     - /recipe random
-        - picks a random recipe from the list of recipes
+        - Selects a random recipe from the saved recipes and displays it in an embedded message.
 
 /light help
 - returns a list of the light commands and descriptions of each
