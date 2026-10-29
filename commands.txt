@@ -30,6 +30,8 @@ returns a list of the recipe commands and descriptions of each
 - returns a list of the light commands and descriptions of each
     - /light status [light]
         - returns the status of all lights or the light specified
+    - /light themes
+        - returns a list of themes
     - /light power [light] [delay]
         - toggles the power of all lights or the selected light
     - /light on [light] [delay]

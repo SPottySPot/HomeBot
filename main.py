@@ -9,7 +9,6 @@ from pandas.errors import EmptyDataError
 import random
 import socket
 from nanoleafapi import Nanoleaf, discovery
-import requests
 
 load_dotenv()
 discordToken = os.getenv("DISCORD_TOKEN", "")
@@ -25,77 +24,15 @@ bot = commands.Bot(command_prefix='.', intents=intents)
 recipes = ["dish", "servings", "ingredients", "steps"]
 recipesDF = pd.DataFrame(columns=recipes)
 
-nanoleafIP = None
-
-#current implementation for getting nanoleaf ip
-def discoverNanoleaf():
-    global nanoleafIP
-
-    message = (
-        "M-SEARCH * HTTP/1.1\r\n"
-        "HOST: 239.255.255.250:1900\r\n"
-        'MAN: "ssdp:discover"\r\n'
-        "MX: 3\r\n"
-        "ST: ssdp:all\r\n"
-        "\r\n"
-    )
-
-    socketInstance = socket.socket(
-        socket.AF_INET,
-        socket.SOCK_DGRAM,
-        socket.IPPROTO_UDP
-    )
-    socketInstance.settimeout(5)
-    socketInstance.sendto(
-        message.encode(),
-        ("239.255.255.250", 1900)
-    )
-
-    try:
-        while True:
-            response, address = socketInstance.recvfrom(4096)
-            response = response.decode(errors="ignore")
-
-            if "nanoleaf" in response.lower():
-                print(f"Nanoleaf found at: {address[0]}")
-
-                for line in response.split("\r\n"):
-                    if line.lower().startswith("location:"):
-                        location = line.split(":", 1)[1].strip()
-
-                        nanoleafIP = location.split("//")[1].split(":")[0]
-
-                        print(f"Nanoleaf IP: {nanoleafIP}")
-                        break
-
-                if nanoleafIP:
-                    break
-
-    except socket.timeout:
-        pass
-
-    socketInstance.close()
-
-    return nanoleafIP
+nanoleaf = None
+nanoleafIP = ""
 
 @bot.event
 async def on_ready():
     print('Online!')
     readRecipesDF()
-
-    #DiscoverNanoleaf()
-
-    #global nanoleafURL
-    #nanoleafURL = f"http://{nanoleafIP}:16021/api/v1"
-    #response = requests.get(
-        #f"{nanoleafURL}/{nanoleafToken}/state"
-    #)
-    #print(response.status_code)
-    #print(response.text)
-
-    #clears the global commands sync
-    #bot.tree.clear_commands(guild=none)
-    #await bot.tree.sync()
+    discoverNanoleaf()
+    createNanoleaf()
 
     #syncs commands list with specifically my guild
     syncedCommands = await bot.tree.sync(guild=guild)
@@ -103,6 +40,30 @@ async def on_ready():
     for command in syncedCommands:
         print(f"- /{command.name}")
     print("Initialised")
+
+#responds with a list of the different help commands
+@app_commands.command(name="help", description="lists the different help commands")
+async def helpCommand(interaction: discord.Interaction):
+    helpEmbed = discord.Embed(
+        title="Help Commands",
+        color=discord.Color.blue()
+    )
+    helpEmbed.add_field(
+        name="/recipe help",
+        value="View commands for managing and searching recipes.",
+        inline=False
+    )
+    helpEmbed.add_field(
+        name="/light help",
+        value="View commands for controlling the smart lights.",
+        inline=False
+    )
+    helpEmbed.add_field(
+        name="/task help",
+        value="View commands for managing tasks, schedules and timers.",
+        inline=False
+    )
+    await interaction.response.send_message(embed=helpEmbed)
 
 #reads the recipes.csv and writes it to the recipesDF. used for updating during use
 def readRecipesDF():
@@ -143,30 +104,6 @@ def CreateRecipeEmbed(dish, title=None):
 def CreateErrorEmbed(message):
     embed = discord.Embed(title="Error",description=message,color=discord.Color.red())
     return embed
-
-#responds with a list of the different help commands
-@app_commands.command(name="help", description="lists the different help commands")
-async def helpCommand(interaction: discord.Interaction):
-    helpEmbed = discord.Embed(
-        title="Help Commands",
-        color=discord.Color.blue()
-    )
-    helpEmbed.add_field(
-        name="/recipe help",
-        value="View commands for managing and searching recipes.",
-        inline=False
-    )
-    helpEmbed.add_field(
-        name="/light help",
-        value="View commands for controlling the smart lights.",
-        inline=False
-    )
-    helpEmbed.add_field(
-        name="/task help",
-        value="View commands for managing tasks, schedules and timers.",
-        inline=False
-    )
-    await interaction.response.send_message(embed=helpEmbed)
 
 #creates the group to add recipe commands to
 recipeGroup = app_commands.Group(name="recipe", description="Manage, search, and browse saved recipes.")
@@ -480,6 +417,96 @@ async def recipeRandomCommand(interaction: discord.Interaction):
     ran = random.randint(0, len(recipesDF)-1)
     dish = recipesDF.iloc[ran]
     await  interaction.response.send_message(embed=CreateRecipeEmbed(dish))
+
+#doesn't work currently but is a cleaner solution
+def getNanoleafIP():
+    global nanoleafIP
+    leaves = discovery.discover_devices(30)
+    nanoleafIP = leaves
+
+#current implementation. is vibe coded.
+def discoverNanoleaf():
+    global nanoleafIP
+
+    message = (
+        "M-SEARCH * HTTP/1.1\r\n"
+        "HOST: 239.255.255.250:1900\r\n"
+        'MAN: "ssdp:discover"\r\n'
+        "MX: 3\r\n"
+        "ST: ssdp:all\r\n\r\n"
+    )
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as socketInstance:
+        socketInstance.settimeout(5)
+        socketInstance.sendto(message.encode(), ("239.255.255.250", 1900))
+
+        try:
+            while True:
+                response, address = socketInstance.recvfrom(4096)
+                response = response.decode(errors="ignore")
+
+                if "nanoleaf" not in response.lower():
+                    continue
+
+                location = next(
+                    (line.split(":", 1)[1].strip()
+                     for line in response.splitlines()
+                     if line.lower().startswith("location:")),
+                    None
+                )
+
+                if location:
+                    from urllib.parse import urlparse
+                    nanoleafIP = urlparse(location).hostname
+                    print(f"Nanoleaf found at: {nanoleafIP}")
+                    return nanoleafIP
+
+        except socket.timeout:
+            pass
+
+    return None
+
+def createNanoleaf():
+    global nanoleaf
+    nanoleaf = Nanoleaf(nanoleafIP, nanoleafToken)
+
+#creates the group to add light commands to
+lightGroup = app_commands.Group(name="light", description="All of the controls for the lights.")
+
+@lightGroup.command(name="help", description="shows a list of all light commands.")
+async def lightHelpCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="status", description="Show the status of the lights.")
+async def lightStatusCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="schematic", description="Shows all possible themes for the lights.")
+async def lightSchematicCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="power", description="toggles the power for lights.")
+async def lightPowerCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="on", description="turns lights on.")
+async def lightOnCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="off", description="turns lights off.")
+async def lightOffCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="theme", description="changes the theme of the lights.")
+async def lightRecipesCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+@lightGroup.command(name="brightness", description="changes the brightness of the lights.")
+async def lightBrightnessCommand(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+
+
+
 
 bot.tree.add_command(helpCommand, guild=guild)
 bot.tree.add_command(recipeGroup, guild=guild)
