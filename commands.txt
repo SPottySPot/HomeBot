@@ -30,7 +30,7 @@ returns a list of the recipe commands and descriptions of each
 - returns a list of the light commands and descriptions of each
     - /light status [light]
         - returns the status of all lights or the light specified
-    - /light themes
+    - /light schematics
         - returns a list of themes
     - /light power [light] [delay]
         - toggles the power of all lights or the selected light
@@ -38,10 +38,10 @@ returns a list of the recipe commands and descriptions of each
         - turns on all lights or the specified light
     - /light off [light] [delay]
         - turns off all lights or the specified light
-    - /light brightness [percentage] [light] [delay]
-        - changes all the lights brightness to the percentage or on the specified light
     - /light theme [theme] [light] [delay]
         - changes the theme of all the lights or the specified light to the certain theme
+    - /light brightness [percentage] [light] [delay]
+        - changes all the lights brightness to the percentage or on the specified light
 
 /task help
     - /task status

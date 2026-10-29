@@ -24,7 +24,7 @@ bot = commands.Bot(command_prefix='.', intents=intents)
 recipes = ["dish", "servings", "ingredients", "steps"]
 recipesDF = pd.DataFrame(columns=recipes)
 
-nanoleaf = None
+nanoleaf = Nanoleaf
 nanoleafIP = ""
 
 @bot.event
@@ -34,6 +34,7 @@ async def on_ready():
     discoverNanoleaf()
     createNanoleaf()
 
+    print(nanoleafIP)
     #syncs commands list with specifically my guild
     syncedCommands = await bot.tree.sync(guild=guild)
     print("Synced commands:")
@@ -418,7 +419,7 @@ async def recipeRandomCommand(interaction: discord.Interaction):
     dish = recipesDF.iloc[ran]
     await  interaction.response.send_message(embed=CreateRecipeEmbed(dish))
 
-#doesn't work currently but is a cleaner solution
+#doesn't work currently but is the solution I would like to implement
 def getNanoleafIP():
     global nanoleafIP
     leaves = discovery.discover_devices(30)
@@ -458,7 +459,6 @@ def discoverNanoleaf():
                 if location:
                     from urllib.parse import urlparse
                     nanoleafIP = urlparse(location).hostname
-                    print(f"Nanoleaf found at: {nanoleafIP}")
                     return nanoleafIP
 
         except socket.timeout:
@@ -475,30 +475,95 @@ lightGroup = app_commands.Group(name="light", description="All of the controls f
 
 @lightGroup.command(name="help", description="shows a list of all light commands.")
 async def lightHelpCommand(interaction: discord.Interaction):
-    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+    lightHelpEmbed = discord.Embed(
+        title="Light Commands",
+        color=discord.Color.blue()
+    )
+    lightHelpEmbed.add_field(
+        name="/light help",
+        value="Display the available light commands and their descriptions.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light status [light]",
+        value="Display the status of all lights or the specified light.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light schematics",
+        value="Display a list of available lighting themes.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light power [light] [delay]",
+        value="Toggle the power of all lights or the specified light, optionally after a delay.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light on [light] [delay]",
+        value="Turn on all lights or the specified light, optionally after a delay.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light off [light] [delay]",
+        value="Turn off all lights or the specified light, optionally after a delay.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light theme [theme] [light] [delay]",
+        value="Apply the specified theme to all lights or the selected light, optionally after a delay.",
+        inline=False
+    )
+    lightHelpEmbed.add_field(
+        name="/light brightness [percentage] [light] [delay]",
+        value="Set the brightness from 0–100% for all lights or the selected light, optionally after a delay.",
+        inline=False
+    )
+    await interaction.response.send_message(embed=lightHelpEmbed)
 
 @lightGroup.command(name="status", description="Show the status of the lights.")
 async def lightStatusCommand(interaction: discord.Interaction):
-    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+    #colour, power, brightness, timers, connection status?
 
-@lightGroup.command(name="schematic", description="Shows all possible themes for the lights.")
-async def lightSchematicCommand(interaction: discord.Interaction):
+@lightGroup.command(name="schematics", description="Shows all possible themes for the lights.")
+async def lightSchematicsCommand(interaction: discord.Interaction):
     await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
 
 @lightGroup.command(name="power", description="toggles the power for lights.")
 async def lightPowerCommand(interaction: discord.Interaction):
-    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+    power = nanoleaf.get_power()
+    nanoleaf.toggle_power()
+    if power != nanoleaf.get_power():
+        await interaction.response.send_message(discord.Embed(title="Power Toggled",color=discord.Color.blue()))
+        return
+    await interaction.response.send_message(embed=CreateErrorEmbed("The command has failed"))
 
 @lightGroup.command(name="on", description="turns lights on.")
 async def lightOnCommand(interaction: discord.Interaction):
-    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+    power = nanoleaf.get_power()
+    nanoleaf.power_on()
+    if nanoleaf.get_power():
+        if power:
+            await interaction.response.send_message(discord.Embed(title="Power Still On",color=discord.Color.blue()))
+            return
+        await interaction.response.send_message(embed=CreateErrorEmbed("Power Turned On"))
+        return
+    await interaction.response.send_message(embed=CreateErrorEmbed("The command has failed"))
 
 @lightGroup.command(name="off", description="turns lights off.")
 async def lightOffCommand(interaction: discord.Interaction):
-    await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
+    power = nanoleaf.get_power()
+    nanoleaf.power_off()
+    if not nanoleaf.get_power():
+        if not power:
+            await interaction.response.send_message(discord.Embed(title="Power Still Off", color=discord.Color.blue()))
+            return
+        await interaction.response.send_message(embed=CreateErrorEmbed("Power Turned Off"))
+        return
+    await interaction.response.send_message(embed=CreateErrorEmbed("The command has failed"))
 
 @lightGroup.command(name="theme", description="changes the theme of the lights.")
-async def lightRecipesCommand(interaction: discord.Interaction):
+async def lightThemeCommand(interaction: discord.Interaction):
     await interaction.response.send_message(embed=CreateErrorEmbed("This command is not implemented yet."))
 
 @lightGroup.command(name="brightness", description="changes the brightness of the lights.")
